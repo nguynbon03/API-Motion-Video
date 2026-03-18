@@ -404,7 +404,6 @@ class KlingBrowser:
         result = {"status": "unknown", "video_url": "", "error": ""}
 
         try:
-            # If we're still on the motion control page, check right panel
             body = page.inner_text("body")
 
             if "Creating..." in body or "Queueing..." in body:
@@ -416,14 +415,36 @@ class KlingBrowser:
                 result["error"] = "Generation failed"
                 return result
 
-            # Look for completed video
-            video_el = page.query_selector("video[src], video source[src]")
-            if video_el:
-                src = video_el.get_attribute("src") or ""
-                if src and ".mp4" in src:
+            # Look for completed video — find result video (not background video)
+            # Result videos are in the right panel, not the login background
+            video_els = page.query_selector_all("video")
+            for vel in video_els:
+                src = vel.get_attribute("src") or ""
+                # Skip login background video (has autoplay+loop and poster with login image)
+                is_bg = vel.get_attribute("loop") is not None and vel.get_attribute("autoplay") is not None
+                poster = vel.get_attribute("poster") or ""
+                if is_bg and ("login" in poster or "kling-website" in poster):
+                    continue
+                # This is likely the result video
+                if src and (src.startswith("blob:") or ".mp4" in src):
                     result["status"] = "succeed"
                     result["video_url"] = src
                     return result
+
+            # Also check <video><source> pattern
+            source_els = page.query_selector_all("video source[src]")
+            for sel in source_els:
+                src = sel.get_attribute("src") or ""
+                if src and (src.startswith("blob:") or ".mp4" in src):
+                    result["status"] = "succeed"
+                    result["video_url"] = src
+                    return result
+
+            # Check for download button (appears when video is ready)
+            dl = page.query_selector('[class*="download"]:visible, a[download]:visible')
+            if dl:
+                result["status"] = "succeed"
+                return result
 
             # Check via intercepted status API
             for api in reversed(self._intercepted_apis):
@@ -543,6 +564,7 @@ class KlingBrowser:
         """Download the completed video to a local file.
 
         Handles both blob: URLs (browser-only) and https: URLs (CDN).
+        Skips background/login video elements.
         """
         import base64
 
@@ -551,17 +573,28 @@ class KlingBrowser:
         page = self._page
         video_url = ""
 
-        # Find video element
-        vel = page.query_selector("video[src]")
-        if vel:
-            video_url = vel.get_attribute("src") or ""
+        # Find result video (skip background/login videos)
+        for vel in page.query_selector_all("video"):
+            src = vel.get_attribute("src") or ""
+            is_bg = vel.get_attribute("loop") is not None and vel.get_attribute("autoplay") is not None
+            poster = vel.get_attribute("poster") or ""
+            if is_bg and ("login" in poster or "kling-website" in poster):
+                continue
+            if src and (src.startswith("blob:") or src.startswith("http")):
+                video_url = src
+                break
+
+        # Also try <video><source> pattern
         if not video_url:
-            vel = page.query_selector("video source[src]")
-            if vel:
-                video_url = vel.get_attribute("src") or ""
+            for sel in page.query_selector_all("video source[src]"):
+                src = sel.get_attribute("src") or ""
+                if src:
+                    video_url = src
+                    break
 
         if not video_url:
             log.warning("No video URL found on page")
+            self._screenshot("download_no_video")
             return False
 
         log.info("Downloading video: %s -> %s", video_url[:80], save_path)
