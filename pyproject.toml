@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kling-tools"
+version = "0.1.0"
+description = "Kling AI Motion Control — API proxy + Web UI automation tool"
+requires-python = ">=3.9"
+dependencies = [
+    "PyJWT>=2.8",
+    "httpx>=0.25",
+    "click>=8.0",
+    "cryptography>=41.0",
+    "playwright>=1.40",
+    "fastapi>=0.100",
+    "uvicorn>=0.24",
+    "pydantic>=2.0",
+    "python-multipart>=0.0.6",
+]
+
+[project.scripts]
+kling-proxy = "kling_proxy.cli:main"
+kling-tool = "kling_tool.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["kling_proxy*", "kling_tool*"]

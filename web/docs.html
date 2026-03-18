@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kling Motion Control API — Documentation</title>
+<meta name="description" content="REST API documentation for Kling AI Motion Control video generation. Upload character image + motion video, get AI-generated video back.">
+<style>
+:root {
+    --bg: #0b0b11;
+    --sidebar-bg: #0f0f17;
+    --card: #13131d;
+    --border: #1e1e30;
+    --green: #4ade80;
+    --green-bg: #0d2818;
+    --blue: #60a5fa;
+    --blue-bg: #0c1e36;
+    --purple: #c084fc;
+    --yellow: #facc15;
+    --red: #ef4444;
+    --red-bg: #2a0f0f;
+    --orange: #fb923c;
+    --text: #d4d4d8;
+    --text-bright: #fafafa;
+    --muted: #71717a;
+    --code-bg: #1a1a28;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Layout */
+.layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+
+/* Sidebar */
+.sidebar {
+    background: var(--sidebar-bg); border-right: 1px solid var(--border);
+    padding: 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.sidebar-header h2 { font-size: 18px; color: var(--green); }
+.sidebar-header p { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.nav-section { padding: 0 12px; margin-bottom: 16px; }
+.nav-section h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); padding: 0 8px; margin-bottom: 6px; }
+.nav-link {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 12px; border-radius: 6px; font-size: 13px;
+    color: var(--text); transition: all 0.15s; cursor: pointer;
+}
+.nav-link:hover { background: var(--card); color: var(--text-bright); text-decoration: none; }
+.nav-link.active { background: var(--green-bg); color: var(--green); }
+.method-tag {
+    font-size: 9px; font-weight: 700; padding: 2px 5px; border-radius: 3px;
+    min-width: 32px; text-align: center; font-family: monospace;
+}
+.method-tag.get { background: var(--blue-bg); color: var(--blue); }
+.method-tag.post { background: var(--green-bg); color: var(--green); }
+.method-tag.delete { background: var(--red-bg); color: var(--red); }
+
+/* Main content */
+.content { padding: 40px 48px; max-width: 900px; }
+
+.hero { margin-bottom: 48px; }
+.hero h1 { font-size: 36px; font-weight: 800; color: var(--text-bright); margin-bottom: 12px; }
+.hero h1 span { color: var(--green); }
+.hero p { font-size: 16px; color: var(--muted); max-width: 600px; line-height: 1.7; }
+
+.badge-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge-green { background: var(--green-bg); color: var(--green); border: 1px solid #1a4a2a; }
+.badge-blue { background: var(--blue-bg); color: var(--blue); border: 1px solid #1a3a5a; }
+.badge-purple { background: #1f1035; color: var(--purple); border: 1px solid #2f2055; }
+
+/* Sections */
+.section { margin-bottom: 56px; scroll-margin-top: 24px; }
+.section h2 { font-size: 24px; font-weight: 700; color: var(--text-bright); margin-bottom: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.section h3 { font-size: 18px; font-weight: 600; color: var(--text-bright); margin: 24px 0 8px; }
+.section > p { color: var(--muted); margin-bottom: 16px; }
+
+/* Endpoint blocks */
+.endpoint {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 32px; overflow: hidden;
+    scroll-margin-top: 24px;
+}
+.endpoint-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+}
+.endpoint-method {
+    font-size: 12px; font-weight: 800; padding: 4px 10px;
+    border-radius: 4px; font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.endpoint-method.get { background: var(--blue-bg); color: var(--blue); }
+.endpoint-method.post { background: var(--green-bg); color: var(--green); }
+.endpoint-method.delete { background: var(--red-bg); color: var(--red); }
+.endpoint-path {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 14px;
+    color: var(--text-bright); font-weight: 500;
+}
+.endpoint-desc { font-size: 13px; color: var(--muted); margin-left: auto; }
+.endpoint-body { padding: 20px; }
+
+/* Tables */
+.param-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+.param-table th {
+    text-align: left; padding: 8px 12px; background: var(--code-bg);
+    color: var(--muted); font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.param-table td { padding: 8px 12px; border-top: 1px solid var(--border); vertical-align: top; }
+.param-table code { background: var(--code-bg); padding: 2px 6px; border-radius: 3px; font-size: 12px; color: var(--green); }
+.param-table .required { color: var(--red); font-size: 10px; font-weight: 700; }
+.param-table .optional { color: var(--muted); font-size: 10px; }
+
+/* Code blocks */
+.code-block {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; margin: 12px 0;
+}
+.code-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px; background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border);
+}
+.code-header span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.code-header button {
+    background: var(--border); border: none; color: var(--muted); padding: 3px 10px;
+    border-radius: 4px; font-size: 11px; cursor: pointer;
+}
+.code-header button:hover { color: var(--text); }
+pre {
+    padding: 14px; overflow-x: auto; font-size: 13px; line-height: 1.5;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+pre .kw { color: var(--purple); }
+pre .str { color: var(--green); }
+pre .num { color: var(--orange); }
+pre .comment { color: var(--muted); font-style: italic; }
+pre .key { color: var(--blue); }
+
+/* Flow diagram */
+.flow {
+    display: flex; align-items: center; gap: 0; margin: 20px 0;
+    flex-wrap: wrap; justify-content: center;
+}
+.flow-step {
+    background: var(--card); border: 1px solid var(--border);
+    padding: 12px 20px; border-radius: 8px; text-align: center; min-width: 140px;
+}
+.flow-step .num { font-size: 20px; font-weight: 800; color: var(--green); }
+.flow-step .label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.flow-arrow { font-size: 20px; color: var(--muted); padding: 0 8px; }
+
+/* Status */
+.status-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 12px 0; }
+.status-item { padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; }
+.status-item.queued { background: #0c1e36; color: var(--blue); }
+.status-item.submitted { background: #1f1035; color: var(--purple); }
+.status-item.processing { background: #2a2a10; color: var(--yellow); }
+.status-item.succeed { background: var(--green-bg); color: var(--green); }
+.status-item.failed { background: var(--red-bg); color: var(--red); }
+
+/* Alert */
+.alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin: 12px 0; display: flex; gap: 8px; }
+.alert-info { background: var(--blue-bg); border: 1px solid #1a3a5a; color: var(--blue); }
+.alert-warn { background: #2a2a10; border: 1px solid #3a3a1a; color: var(--yellow); }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .content { padding: 24px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-header">
+        <h2>&#9889; Kling Motion API</h2>
+        <p>v0.1.0 &mdash; Motion Control</p>
+    </div>
+
+    <div class="nav-section">
+        <h4>Getting Started</h4>
+        <a class="nav-link active" href="#overview">Overview</a>
+        <a class="nav-link" href="#quickstart">Quick Start</a>
+        <a class="nav-link" href="#authentication">Authentication</a>
+        <a class="nav-link" href="#status-flow">Task Status Flow</a>
+    </div>
+
+    <div class="nav-section">
+        <h4>Core Endpoints</h4>
+        <a class="nav-link" href="#generate">
+            <span class="method-tag post">POST</span> /api/generate
+        </a>
+        <a class="nav-link" href="#get-task">
+            <span class="method-tag get">GET</span> /api/tasks/{id}
+        </a>
+        <a class="nav-link" href="#list-tasks">
+            <span class="method-tag get">GET</span> /api/tasks
+        </a>
+        <a class="nav-link" href="#download">
+            <span class="method-tag get">GET</span> /outputs/{file}
+        </a>
+    </div>
+
+    <div class="nav-section">
+        <h4>Management</h4>
+        <a class="nav-link" href="#upload-accounts">
+            <span class="method-tag post">POST</span> /api/upload/accounts
+        </a>
+        <a class="nav-link" href="#pool-status">
+            <span class="method-tag get">GET</span> /api/status
+        </a>
+        <a class="nav-link" href="#health">
+            <span class="method-tag get">GET</span> /health
+        </a>
+    </div>
+
+    <div class="nav-section">
+        <h4>Compatible API</h4>
+        <a class="nav-link" href="#compat">
+            <span class="method-tag post">POST</span> /v1/videos/motion-control
+        </a>
+    </div>
+
+    <div class="nav-section">
+        <h4>Resources</h4>
+        <a class="nav-link" href="#code-examples">Code Examples</a>
+        <a class="nav-link" href="#errors">Error Handling</a>
+        <a class="nav-link" href="#limits">Limits &amp; Tips</a>
+    </div>
+</nav>
+
+<!-- Content -->
+<main class="content">
+
+<!-- Hero -->
+<div class="hero" id="overview">
+    <h1>Kling <span>Motion Control</span> API</h1>
+    <p>
+        Generate AI motion videos by uploading a character image and a motion reference video.
+        The API handles account rotation, browser automation, and video generation automatically.
+    </p>
+    <div class="badge-row">
+        <span class="badge badge-green">REST API</span>
+        <span class="badge badge-blue">Multipart Upload</span>
+        <span class="badge badge-purple">Auto Account Rotation</span>
+    </div>
+</div>
+
+<!-- Quick Start -->
+<div class="section" id="quickstart">
+    <h2>Quick Start</h2>
+    <p>Create a motion video in 3 steps:</p>
+
+    <div class="flow">
+        <div class="flow-step"><div class="num">1</div><div class="label">Upload image + video</div></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-step"><div class="num">2</div><div class="label">Poll task status</div></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-step"><div class="num">3</div><div class="label">Download result</div></div>
+    </div>
+
+    <div class="code-block">
+        <div class="code-header"><span>bash</span><button onclick="copyCode(this)">Copy</button></div>
+<pre><span class="comment"># 1. Create task — upload image + video</span>
+curl -X POST https://YOUR_SERVER/api/generate \
+  -F <span class="str">"image=@character.png"</span> \
+  -F <span class="str">"video=@dance.mp4"</span> \
+  -F <span class="str">"mode=pro"</span>
+<span class="comment"># → {"data": {"task_id": 1, "status": "queued"}}</span>
+
+<span class="comment"># 2. Poll status (repeat until succeed)</span>
+curl https://YOUR_SERVER/api/tasks/<span class="num">1</span>
+<span class="comment"># → {"status": "succeed", "result_video_url": "/outputs/task_1.mp4"}</span>
+
+<span class="comment"># 3. Download video</span>
+curl -O https://YOUR_SERVER/outputs/task_1.mp4</pre>
+    </div>
+</div>
+
+<!-- Authentication -->
+<div class="section" id="authentication">
+    <h2>Authentication</h2>
+    <p>Currently no API key required. If using ngrok, include this header:</p>
+    <div class="code-block">
+        <div class="code-header"><span>header</span></div>
+        <pre>ngrok-skip-browser-warning: true</pre>
+    </div>
+    <div class="alert alert-info">&#128161; API key authentication can be added in future versions for production use.</div>
+</div>
+
+<!-- Status Flow -->
+<div class="section" id="status-flow">
+    <h2>Task Status Flow</h2>
+    <p>Every task goes through these stages:</p>
+    <div class="status-list">
+        <div class="status-item queued">QUEUED &mdash; In queue</div>
+        <div class="status-item submitted">SUBMITTED &mdash; Account assigned</div>
+        <div class="status-item processing">PROCESSING &mdash; Video creating</div>
+        <div class="status-item succeed">SUCCEED &mdash; Video ready</div>
+        <div class="status-item failed">FAILED &mdash; Error occurred</div>
+    </div>
+    <div class="alert alert-warn">&#9201; Typical generation time: 5-10 minutes per video. Poll every 10 seconds.</div>
+</div>
+
+<!-- POST /api/generate -->
+<div class="endpoint" id="generate">
+    <div class="endpoint-header">
+        <span class="endpoint-method post">POST</span>
+        <span class="endpoint-path">/api/generate</span>
+        <span class="endpoint-desc">Create motion video (all-in-one)</span>
+    </div>
+    <div class="endpoint-body">
+        <p style="color:var(--muted);margin-bottom:16px;">Upload character image and motion video in a single request. Returns a task ID for polling.</p>
+
+        <h3>Request Body <code>multipart/form-data</code></h3>
+        <table class="param-table">
+            <thead><tr><th>Field</th><th>Type</th><th></th><th>Default</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>image</code></td><td>File</td><td><span class="required">REQUIRED</span></td><td>—</td><td>Character image (.jpg, .png). Max 10MB.</td></tr>
+                <tr><td><code>video</code></td><td>File</td><td><span class="required">REQUIRED</span></td><td>—</td><td>Motion reference video (.mp4, .mov). 3-30 seconds, max 100MB.</td></tr>
+                <tr><td><code>prompt</code></td><td>string</td><td><span class="optional">optional</span></td><td><code>""</code></td><td>Text description of the character.</td></tr>
+                <tr><td><code>mode</code></td><td>string</td><td><span class="optional">optional</span></td><td><code>"pro"</code></td><td><code>pro</code> (best quality) or <code>std</code> (faster).</td></tr>
+                <tr><td><code>model_name</code></td><td>string</td><td><span class="optional">optional</span></td><td><code>"kling-v2-6"</code></td><td><code>kling-v2-6</code> or <code>kling-v3</code></td></tr>
+                <tr><td><code>orientation</code></td><td>string</td><td><span class="optional">optional</span></td><td><code>"image"</code></td><td><code>image</code> — match image pose. <code>video</code> — match video pose.</td></tr>
+                <tr><td><code>keep_sound</code></td><td>string</td><td><span class="optional">optional</span></td><td><code>"yes"</code></td><td><code>yes</code> — keep original audio. <code>no</code> — silent.</td></tr>
+            </tbody>
+        </table>
+
+        <h3>Response</h3>
+        <div class="code-block">
+            <div class="code-header"><span>json — 200 OK</span></div>
+<pre>{
+  <span class="key">"code"</span>: <span class="num">0</span>,
+  <span class="key">"message"</span>: <span class="str">"Task queued"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"task_id"</span>: <span class="num">1</span>,
+    <span class="key">"external_task_id"</span>: <span class="str">"gen-a1b2c3d4"</span>,
+    <span class="key">"status"</span>: <span class="str">"queued"</span>,
+    <span class="key">"image"</span>: <span class="str">"abc123_character.png"</span>,
+    <span class="key">"video"</span>: <span class="str">"def456_dance.mp4"</span>
+  }
+}</pre>
+        </div>
+
+        <h3>Example</h3>
+        <div class="code-block">
+            <div class="code-header"><span>curl</span><button onclick="copyCode(this)">Copy</button></div>
+<pre>curl -X POST https://YOUR_SERVER/api/generate \
+  -H <span class="str">"ngrok-skip-browser-warning: true"</span> \
+  -F <span class="str">"image=@/path/to/character.png"</span> \
+  -F <span class="str">"video=@/path/to/dance.mp4"</span> \
+  -F <span class="str">"mode=pro"</span> \
+  -F <span class="str">"prompt=A girl wearing a gray T-shirt"</span></pre>
+        </div>
+    </div>
+</div>
+
+<!-- GET /api/tasks/{id} -->
+<div class="endpoint" id="get-task">
+    <div class="endpoint-header">
+        <span class="endpoint-method get">GET</span>
+        <span class="endpoint-path">/api/tasks/{task_id}</span>
+        <span class="endpoint-desc">Get task status &amp; result</span>
+    </div>
+    <div class="endpoint-body">
+        <p style="color:var(--muted);margin-bottom:16px;">Poll this endpoint to check if your video is ready.</p>
+
+        <h3>Response (processing)</h3>
+        <div class="code-block">
+            <div class="code-header"><span>json</span></div>
+<pre>{
+  <span class="key">"id"</span>: <span class="num">1</span>,
+  <span class="key">"status"</span>: <span class="str">"processing"</span>,
+  <span class="key">"account_name"</span>: <span class="str">"acc-01"</span>,
+  <span class="key">"mode"</span>: <span class="str">"pro"</span>,
+  <span class="key">"created_at"</span>: <span class="str">"2026-03-19T02:30:00"</span>,
+  <span class="key">"result_video_url"</span>: <span class="str">""</span>
+}</pre>
+        </div>
+
+        <h3>Response (completed)</h3>
+        <div class="code-block">
+            <div class="code-header"><span>json</span></div>
+<pre>{
+  <span class="key">"id"</span>: <span class="num">1</span>,
+  <span class="key">"status"</span>: <span class="str">"succeed"</span>,
+  <span class="key">"account_name"</span>: <span class="str">"acc-01"</span>,
+  <span class="key">"mode"</span>: <span class="str">"pro"</span>,
+  <span class="key">"created_at"</span>: <span class="str">"2026-03-19T02:30:00"</span>,
+  <span class="key">"completed_at"</span>: <span class="str">"2026-03-19T02:38:00"</span>,
+  <span class="key">"result_video_url"</span>: <span class="str">"/outputs/task_1.mp4"</span>
+}</pre>
+        </div>
+    </div>
+</div>
+
+<!-- GET /api/tasks -->
+<div class="endpoint" id="list-tasks">
+    <div class="endpoint-header">
+        <span class="endpoint-method get">GET</span>
+        <span class="endpoint-path">/api/tasks</span>
+        <span class="endpoint-desc">List all tasks</span>
+    </div>
+    <div class="endpoint-body">
+        <h3>Query Parameters</h3>
+        <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>page</code></td><td>int</td><td>1</td><td>Page number</td></tr>
+                <tr><td><code>size</code></td><td>int</td><td>50</td><td>Items per page (max 100)</td></tr>
+                <tr><td><code>status</code></td><td>string</td><td>—</td><td>Filter: queued, processing, succeed, failed</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- GET /outputs -->
+<div class="endpoint" id="download">
+    <div class="endpoint-header">
+        <span class="endpoint-method get">GET</span>
+        <span class="endpoint-path">/outputs/task_{id}.mp4</span>
+        <span class="endpoint-desc">Download result video</span>
+    </div>
+    <div class="endpoint-body">
+        <p style="color:var(--muted);margin-bottom:12px;">When a task completes, the video file is available at this URL. Use the <code>result_video_url</code> from the task response.</p>
+        <div class="code-block">
+            <div class="code-header"><span>curl</span></div>
+            <pre>curl -O https://YOUR_SERVER/outputs/task_1.mp4</pre>
+        </div>
+    </div>
+</div>
+
+<!-- Upload accounts -->
+<div class="endpoint" id="upload-accounts">
+    <div class="endpoint-header">
+        <span class="endpoint-method post">POST</span>
+        <span class="endpoint-path">/api/upload/accounts</span>
+        <span class="endpoint-desc">Import Kling accounts</span>
+    </div>
+    <div class="endpoint-body">
+        <p style="color:var(--muted);margin-bottom:12px;">Upload a text file with Kling web accounts. Each line: <code>email:password</code> or <code>email:password:proxy</code></p>
+        <table class="param-table">
+            <thead><tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>file</code></td><td>File</td><td><span class="required">REQUIRED</span></td><td>Text file with account lines</td></tr>
+                <tr><td><code>credits</code></td><td>float</td><td><span class="optional">optional</span></td><td>Default credits per account (default: 66)</td></tr>
+            </tbody>
+        </table>
+        <h3>Account file format</h3>
+        <div class="code-block">
+            <div class="code-header"><span>accounts.txt</span></div>
+<pre><span class="comment"># Simple format</span>
+user1@gmail.com:MyPassword123
+
+<span class="comment"># With proxy (for account rotation)</span>
+user2@gmail.com:Pass456:socks5://1.2.3.4:1080
+user3@gmail.com:Pass789:http://proxy:8080
+
+<span class="comment"># Full format: name|email|password|proxy|credits</span>
+acc-01|user4@gmail.com|Pass000|socks5://5.6.7.8:1080|100</pre>
+        </div>
+    </div>
+</div>
+
+<!-- Pool status -->
+<div class="endpoint" id="pool-status">
+    <div class="endpoint-header">
+        <span class="endpoint-method get">GET</span>
+        <span class="endpoint-path">/api/status</span>
+        <span class="endpoint-desc">Pool &amp; task summary</span>
+    </div>
+    <div class="endpoint-body">
+        <div class="code-block">
+            <div class="code-header"><span>json</span></div>
+<pre>{
+  <span class="key">"total_accounts"</span>: <span class="num">10</span>,
+  <span class="key">"active_accounts"</span>: <span class="num">8</span>,
+  <span class="key">"total_credits_remaining"</span>: <span class="num">520</span>,
+  <span class="key">"tasks"</span>: {
+    <span class="key">"queued"</span>: <span class="num">2</span>,
+    <span class="key">"processing"</span>: <span class="num">1</span>,
+    <span class="key">"succeed"</span>: <span class="num">47</span>,
+    <span class="key">"failed"</span>: <span class="num">3</span>
+  },
+  <span class="key">"worker_running"</span>: <span class="kw">true</span>
+}</pre>
+        </div>
+    </div>
+</div>
+
+<!-- Health -->
+<div class="endpoint" id="health">
+    <div class="endpoint-header">
+        <span class="endpoint-method get">GET</span>
+        <span class="endpoint-path">/health</span>
+        <span class="endpoint-desc">Server health check</span>
+    </div>
+    <div class="endpoint-body">
+        <div class="code-block">
+            <div class="code-header"><span>json</span></div>
+<pre>{
+  <span class="key">"status"</span>: <span class="str">"ok"</span>,
+  <span class="key">"worker_running"</span>: <span class="kw">true</span>,
+  <span class="key">"active_accounts"</span>: <span class="num">8</span>,
+  <span class="key">"total_credits"</span>: <span class="num">520</span>,
+  <span class="key">"queued_tasks"</span>: <span class="num">0</span>
+}</pre>
+        </div>
+    </div>
+</div>
+
+<!-- Compatible API -->
+<div class="section" id="compat">
+    <h2>Kling-Compatible API</h2>
+    <p>These endpoints mirror the official Kling API format for drop-in compatibility:</p>
+    <div class="code-block">
+        <div class="code-header"><span>endpoints</span></div>
+<pre><span class="comment"># Same format as official Kling API</span>
+POST /v1/videos/motion-control      <span class="comment"># Create task (JSON body)</span>
+GET  /v1/videos/motion-control/{id}  <span class="comment"># Get task status</span>
+GET  /v1/videos/motion-control       <span class="comment"># List tasks</span></pre>
+    </div>
+</div>
+
+<!-- Code Examples -->
+<div class="section" id="code-examples">
+    <h2>Code Examples</h2>
+
+    <h3>JavaScript (Browser / Website)</h3>
+    <div class="code-block">
+        <div class="code-header"><span>javascript</span><button onclick="copyCode(this)">Copy</button></div>
+<pre><span class="kw">const</span> API = <span class="str">'https://YOUR_SERVER'</span>;
+
+<span class="comment">// 1. Create motion video</span>
+<span class="kw">async function</span> createVideo(imageFile, videoFile) {
+  <span class="kw">const</span> form = <span class="kw">new</span> FormData();
+  form.append(<span class="str">'image'</span>, imageFile);
+  form.append(<span class="str">'video'</span>, videoFile);
+  form.append(<span class="str">'mode'</span>, <span class="str">'pro'</span>);
+
+  <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">`${API}/api/generate`</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: { <span class="str">'ngrok-skip-browser-warning'</span>: <span class="str">'true'</span> },
+    body: form
+  });
+  <span class="kw">const</span> { data } = <span class="kw">await</span> res.json();
+  <span class="kw">return</span> data.task_id;
+}
+
+<span class="comment">// 2. Poll until done</span>
+<span class="kw">async function</span> waitForVideo(taskId) {
+  <span class="kw">while</span> (<span class="kw">true</span>) {
+    <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">`${API}/api/tasks/${taskId}`</span>, {
+      headers: { <span class="str">'ngrok-skip-browser-warning'</span>: <span class="str">'true'</span> }
+    });
+    <span class="kw">const</span> task = <span class="kw">await</span> res.json();
+
+    <span class="kw">if</span> (task.status === <span class="str">'succeed'</span>)
+      <span class="kw">return</span> <span class="str">`${API}${task.result_video_url}`</span>;
+    <span class="kw">if</span> (task.status === <span class="str">'failed'</span>)
+      <span class="kw">throw new</span> Error(task.error_message);
+
+    <span class="kw">await new</span> Promise(r => setTimeout(r, <span class="num">10000</span>));
+  }
+}</pre>
+    </div>
+
+    <h3>Python</h3>
+    <div class="code-block">
+        <div class="code-header"><span>python</span><button onclick="copyCode(this)">Copy</button></div>
+<pre><span class="kw">import</span> httpx, time
+
+API = <span class="str">"https://YOUR_SERVER"</span>
+
+<span class="comment"># 1. Create task</span>
+files = {
+    <span class="str">"image"</span>: open(<span class="str">"character.png"</span>, <span class="str">"rb"</span>),
+    <span class="str">"video"</span>: open(<span class="str">"dance.mp4"</span>, <span class="str">"rb"</span>),
+}
+data = {<span class="str">"mode"</span>: <span class="str">"pro"</span>, <span class="str">"prompt"</span>: <span class="str">"A girl in gray T-shirt"</span>}
+
+r = httpx.post(f<span class="str">"{API}/api/generate"</span>, files=files, data=data)
+task_id = r.json()[<span class="str">"data"</span>][<span class="str">"task_id"</span>]
+
+<span class="comment"># 2. Poll</span>
+<span class="kw">while True</span>:
+    r = httpx.get(f<span class="str">"{API}/api/tasks/{task_id}"</span>)
+    task = r.json()
+    <span class="kw">if</span> task[<span class="str">"status"</span>] == <span class="str">"succeed"</span>:
+        video_url = f<span class="str">"{API}{task['result_video_url']}"</span>
+        <span class="kw">break</span>
+    time.sleep(<span class="num">10</span>)
+
+<span class="comment"># 3. Download</span>
+r = httpx.get(video_url)
+open(<span class="str">"output.mp4"</span>, <span class="str">"wb"</span>).write(r.content)</pre>
+    </div>
+</div>
+
+<!-- Errors -->
+<div class="section" id="errors">
+    <h2>Error Handling</h2>
+    <table class="param-table">
+        <thead><tr><th>Code</th><th>Message</th><th>Description</th></tr></thead>
+        <tbody>
+            <tr><td><code>400</code></td><td>Invalid file type</td><td>Wrong image/video format</td></tr>
+            <tr><td><code>404</code></td><td>Task not found</td><td>Task ID doesn't exist</td></tr>
+            <tr><td><code>500</code></td><td>Internal error</td><td>Server error — check /api/status</td></tr>
+        </tbody>
+    </table>
+    <p style="margin-top:12px;">Task-level errors appear in <code>error_message</code> field when <code>status = "failed"</code>.</p>
+</div>
+
+<!-- Limits -->
+<div class="section" id="limits">
+    <h2>Limits &amp; Tips</h2>
+    <table class="param-table">
+        <thead><tr><th>Parameter</th><th>Limit</th></tr></thead>
+        <tbody>
+            <tr><td>Image size</td><td>Max 10MB, .jpg/.png</td></tr>
+            <tr><td>Image ratio</td><td>1:2.5 to 2.5:1</td></tr>
+            <tr><td>Video size</td><td>Max 100MB, .mp4/.mov</td></tr>
+            <tr><td>Video duration</td><td>3-30 seconds (10s max if orientation=image)</td></tr>
+            <tr><td>Concurrent tasks</td><td>1 per account (auto-rotation)</td></tr>
+            <tr><td>Generation time</td><td>~5-10 minutes per video</td></tr>
+            <tr><td>Credits per video</td><td>~19 credits (pro mode, 720p)</td></tr>
+        </tbody>
+    </table>
+
+    <h3 style="margin-top:24px;">Video Tips for Best Results</h3>
+    <ul style="padding-left:20px;color:var(--muted);font-size:13px;line-height:2;">
+        <li>Use video with <strong>1 person</strong> clearly visible</li>
+        <li>Head + arms + legs should be visible (minimal occlusion)</li>
+        <li>Avoid fast camera movement or quick cuts</li>
+        <li>Moderate motion speed works best</li>
+        <li>Good lighting on both image and video</li>
+    </ul>
+</div>
+
+</main>
+</div>
+
+<script>
+function copyCode(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    navigator.clipboard.writeText(pre.textContent);
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+
+// Active nav on scroll
+const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+        if (e.isIntersecting) {
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            const link = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+            if (link) link.classList.add('active');
+        }
+    });
+}, { threshold: 0.3 });
+
+document.querySelectorAll('.section, .endpoint').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

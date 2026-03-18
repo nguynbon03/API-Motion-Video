@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kling Motion Control — AI Video Generator</title>
+<style>
+:root {
+    --bg: #0a0a0f;
+    --card: #12121a;
+    --border: #1e1e2e;
+    --green: #4ade80;
+    --green-dim: #166534;
+    --blue: #60a5fa;
+    --purple: #c084fc;
+    --yellow: #facc15;
+    --red: #ef4444;
+    --text: #e0e0e0;
+    --muted: #666;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* Header */
+.header {
+    background: linear-gradient(135deg, #0f0f1a 0%, #1a1025 50%, #0f1a15 100%);
+    padding: 24px 0;
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+}
+.header h1 { font-size: 28px; font-weight: 700; }
+.header h1 span { color: var(--green); }
+.header p { color: var(--muted); font-size: 14px; margin-top: 6px; }
+
+/* Container */
+.container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+
+/* Config bar */
+.config-bar {
+    display: flex; gap: 12px; align-items: center;
+    background: var(--card); border: 1px solid var(--border);
+    padding: 12px 16px; border-radius: 10px; margin-bottom: 24px;
+}
+.config-bar label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.config-bar input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px;
+}
+.config-bar .dot { width: 10px; height: 10px; border-radius: 50%; }
+.config-bar .dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.config-bar .dot.offline { background: var(--red); }
+
+/* Upload Grid */
+.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+.upload-card {
+    background: var(--card); border: 2px dashed var(--border);
+    border-radius: 12px; padding: 30px 20px; text-align: center;
+    cursor: pointer; transition: all 0.25s ease; position: relative;
+    overflow: hidden;
+}
+.upload-card:hover { border-color: var(--green); background: #0d1a0d; }
+.upload-card.dragover { border-color: var(--green); background: #1a2a1a; transform: scale(1.01); }
+.upload-card.has-file { border-color: var(--green); border-style: solid; }
+.upload-card input { display: none; }
+.upload-card .icon { font-size: 40px; margin-bottom: 8px; opacity: 0.8; }
+.upload-card .title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.upload-card .hint { font-size: 12px; color: var(--muted); }
+.upload-card .file-name {
+    margin-top: 10px; padding: 6px 12px; background: var(--green-dim);
+    border-radius: 6px; font-size: 12px; color: var(--green); display: none;
+}
+.upload-card.has-file .file-name { display: inline-block; }
+
+/* Preview */
+.preview-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.preview-box {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; min-height: 180px;
+    display: flex; align-items: center; justify-content: center;
+}
+.preview-box img, .preview-box video { max-width: 100%; max-height: 250px; object-fit: contain; }
+.preview-box .empty { color: var(--muted); font-size: 13px; }
+
+/* Options */
+.options-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px;
+}
+.opt-group label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.opt-group select, .opt-group input {
+    width: 100%; background: var(--card); border: 1px solid var(--border);
+    color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 13px;
+}
+.prompt-group { margin-bottom: 20px; }
+.prompt-group textarea {
+    width: 100%; background: var(--card); border: 1px solid var(--border);
+    color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 13px;
+    resize: vertical; min-height: 60px;
+}
+
+/* Generate button */
+.btn-generate {
+    width: 100%; padding: 14px; border: none; border-radius: 10px;
+    font-size: 16px; font-weight: 700; cursor: pointer;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #000; transition: all 0.3s ease;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-generate:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(34,197,94,0.3); }
+.btn-generate:disabled { background: #1e1e2e; color: #555; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* Result */
+.result-section {
+    margin-top: 24px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; display: none;
+}
+.result-section.show { display: block; }
+.result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.result-header h3 { font-size: 15px; }
+
+.status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.status-queued { background: #1e3a5f; color: var(--blue); }
+.status-submitted { background: #2d1b4e; color: var(--purple); }
+.status-processing { background: #3b3a1f; color: var(--yellow); }
+.status-succeed { background: #14532d; color: var(--green); }
+.status-failed { background: #450a0a; color: var(--red); }
+
+.progress-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 16px; }
+.progress-bar .fill { height: 100%; background: var(--green); transition: width 0.5s ease; border-radius: 2px; }
+
+.result-video {
+    width: 100%; border-radius: 8px; background: #000; max-height: 400px;
+}
+.result-info { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; font-size: 12px; }
+.result-info div { padding: 6px 10px; background: var(--bg); border-radius: 6px; }
+.result-info span { color: var(--muted); }
+
+.btn-download {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 20px; background: var(--green); color: #000;
+    border: none; border-radius: 8px; font-weight: 600; font-size: 14px;
+    cursor: pointer; text-decoration: none; margin-top: 12px;
+}
+.btn-download:hover { background: #22c55e; }
+
+/* Toast */
+.toast {
+    position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
+    background: var(--card); border: 1px solid var(--green-dim);
+    color: var(--green); border-radius: 8px; font-size: 13px;
+    z-index: 999; display: none; animation: slideUp 0.3s ease;
+}
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } }
+
+/* Responsive */
+@media (max-width: 640px) {
+    .upload-grid, .preview-row, .options-row { grid-template-columns: 1fr; }
+    .config-bar { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>&#9889; Kling <span>Motion Control</span></h1>
+    <p>Upload character image + motion video &rarr; AI generates motion video</p>
+</div>
+
+<div class="container">
+
+    <!-- API Config -->
+    <div class="config-bar">
+        <label>API Server:</label>
+        <input type="text" id="api-url" value="" placeholder="https://your-ngrok-url.ngrok-free.dev">
+        <div class="dot offline" id="status-dot"></div>
+        <button onclick="checkConnection()" style="background:var(--border);color:var(--text);border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;">Connect</button>
+    </div>
+
+    <!-- Upload -->
+    <div class="upload-grid">
+        <div class="upload-card" id="image-card"
+             onclick="document.getElementById('image-input').click()"
+             ondragover="event.preventDefault();this.classList.add('dragover')"
+             ondragleave="this.classList.remove('dragover')"
+             ondrop="dropFile(event,'image-input')">
+            <div class="icon">&#128444;&#65039;</div>
+            <div class="title">Character Image</div>
+            <div class="hint">.jpg / .png &mdash; max 10MB</div>
+            <div class="file-name" id="image-name"></div>
+            <input type="file" id="image-input" accept=".jpg,.jpeg,.png" onchange="onFileSelect(this,'image')">
+        </div>
+
+        <div class="upload-card" id="video-card"
+             onclick="document.getElementById('video-input').click()"
+             ondragover="event.preventDefault();this.classList.add('dragover')"
+             ondragleave="this.classList.remove('dragover')"
+             ondrop="dropFile(event,'video-input')">
+            <div class="icon">&#127916;</div>
+            <div class="title">Motion Video</div>
+            <div class="hint">.mp4 / .mov &mdash; 3-30s, max 100MB</div>
+            <div class="file-name" id="video-name"></div>
+            <input type="file" id="video-input" accept=".mp4,.mov" onchange="onFileSelect(this,'video')">
+        </div>
+    </div>
+
+    <!-- Preview -->
+    <div class="preview-row">
+        <div class="preview-box" id="image-preview"><span class="empty">Image preview</span></div>
+        <div class="preview-box" id="video-preview"><span class="empty">Video preview</span></div>
+    </div>
+
+    <!-- Options -->
+    <div class="options-row">
+        <div class="opt-group">
+            <label>Mode</label>
+            <select id="opt-mode">
+                <option value="pro">Pro (best quality)</option>
+                <option value="std">Standard (faster)</option>
+            </select>
+        </div>
+        <div class="opt-group">
+            <label>Orientation</label>
+            <select id="opt-orientation">
+                <option value="image">Match Image</option>
+                <option value="video">Match Video</option>
+            </select>
+        </div>
+        <div class="opt-group">
+            <label>Keep Sound</label>
+            <select id="opt-sound">
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="prompt-group">
+        <textarea id="opt-prompt" placeholder="Optional: Describe the character (e.g. 'A girl wearing a loose gray T-shirt and denim shorts')"></textarea>
+    </div>
+
+    <!-- Generate -->
+    <button class="btn-generate" id="btn-gen" onclick="generate()" disabled>
+        &#9889; Generate Motion Video
+    </button>
+
+    <!-- Result -->
+    <div class="result-section" id="result-section">
+        <div class="result-header">
+            <h3>&#127916; Result</h3>
+            <span class="status-badge" id="result-status">QUEUED</span>
+        </div>
+        <div class="progress-bar"><div class="fill" id="progress-fill" style="width:0%"></div></div>
+        <div id="result-content">
+            <p style="color:var(--muted);text-align:center;padding:20px;" id="result-message">Waiting in queue...</p>
+        </div>
+        <div class="result-info" id="result-info" style="display:none">
+            <div><span>Task ID:</span> <b id="info-taskid"></b></div>
+            <div><span>Account:</span> <b id="info-account"></b></div>
+            <div><span>Created:</span> <b id="info-created"></b></div>
+            <div><span>Status:</span> <b id="info-status"></b></div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let imageFile = null, videoFile = null;
+let currentTaskId = null;
+let pollTimer = null;
+
+function getAPI() {
+    return document.getElementById('api-url').value.replace(/\/+$/, '');
+}
+
+const HEADERS = { 'ngrok-skip-browser-warning': 'true' };
+
+// ── Connection ──
+
+async function checkConnection() {
+    const dot = document.getElementById('status-dot');
+    const api = getAPI();
+    if (!api) { toast('Enter API server URL'); return; }
+    try {
+        const r = await fetch(api + '/health', { headers: HEADERS });
+        const d = await r.json();
+        dot.className = 'dot online';
+        toast('Connected! ' + d.active_accounts + ' accounts, ' + d.total_credits + ' credits');
+    } catch(e) {
+        dot.className = 'dot offline';
+        toast('Connection failed: ' + e.message);
+    }
+}
+
+// ── File handling ──
+
+function dropFile(e, inputId) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('dragover');
+    const input = document.getElementById(inputId);
+    input.files = e.dataTransfer.files;
+    input.dispatchEvent(new Event('change'));
+}
+
+function onFileSelect(input, type) {
+    const file = input.files[0];
+    if (!file) return;
+
+    if (type === 'image') {
+        imageFile = file;
+        document.getElementById('image-name').textContent = file.name;
+        document.getElementById('image-card').classList.add('has-file');
+        // Preview
+        const reader = new FileReader();
+        reader.onload = e => {
+            document.getElementById('image-preview').innerHTML = '<img src="' + e.target.result + '">';
+        };
+        reader.readAsDataURL(file);
+    } else {
+        videoFile = file;
+        document.getElementById('video-name').textContent = file.name;
+        document.getElementById('video-card').classList.add('has-file');
+        // Preview
+        const url = URL.createObjectURL(file);
+        document.getElementById('video-preview').innerHTML = '<video src="' + url + '" controls muted style="max-width:100%;max-height:250px;"></video>';
+    }
+
+    document.getElementById('btn-gen').disabled = !(imageFile && videoFile);
+}
+
+// ── Generate ──
+
+async function generate() {
+    const api = getAPI();
+    if (!api) { toast('Set API URL first'); return; }
+    if (!imageFile || !videoFile) { toast('Upload both files'); return; }
+
+    const btn = document.getElementById('btn-gen');
+    btn.disabled = true;
+    btn.innerHTML = '&#9203; Uploading...';
+
+    const form = new FormData();
+    form.append('image', imageFile);
+    form.append('video', videoFile);
+    form.append('mode', document.getElementById('opt-mode').value);
+    form.append('orientation', document.getElementById('opt-orientation').value);
+    form.append('keep_sound', document.getElementById('opt-sound').value);
+    form.append('prompt', document.getElementById('opt-prompt').value);
+
+    try {
+        const r = await fetch(api + '/api/generate', { method: 'POST', headers: HEADERS, body: form });
+        const d = await r.json();
+
+        if (d.code === 0 && d.data) {
+            currentTaskId = d.data.task_id;
+            showResult('queued', 'Task #' + currentTaskId + ' queued. Worker will pick it up...');
+            startPolling();
+            toast('Task created! ID: ' + currentTaskId);
+        } else {
+            toast('Error: ' + (d.message || d.detail || 'Unknown'));
+        }
+    } catch(e) {
+        toast('Failed: ' + e.message);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '&#9889; Generate Motion Video';
+}
+
+// ── Polling ──
+
+function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(pollStatus, 8000);
+    pollStatus();
+}
+
+async function pollStatus() {
+    if (!currentTaskId) return;
+    const api = getAPI();
+
+    try {
+        const r = await fetch(api + '/api/tasks/' + currentTaskId, { headers: HEADERS });
+        const t = await r.json();
+        const status = t.status || t.task_status || 'unknown';
+
+        if (status === 'queued') {
+            showResult('queued', 'Waiting in queue...', 10);
+        } else if (status === 'submitted') {
+            showResult('submitted', 'Account selected, opening browser...', 25);
+        } else if (status === 'processing') {
+            showResult('processing', 'Creating video... (est. 5-10 min)', 60);
+        } else if (status === 'succeed') {
+            clearInterval(pollTimer);
+            const videoUrl = api + (t.result_video_url || '');
+            showResult('succeed', '', 100);
+
+            let html = '';
+            if (t.result_video_url) {
+                html += '<video class="result-video" src="' + videoUrl + '" controls autoplay></video>';
+                html += '<br><a class="btn-download" href="' + videoUrl + '" download>&#11015; Download Video</a>';
+            } else {
+                html += '<p style="color:var(--green);text-align:center;padding:20px;">Video completed!</p>';
+            }
+            document.getElementById('result-content').innerHTML = html;
+
+            // Info
+            document.getElementById('result-info').style.display = 'grid';
+            document.getElementById('info-taskid').textContent = t.id || currentTaskId;
+            document.getElementById('info-account').textContent = t.account_name || '-';
+            document.getElementById('info-created').textContent = (t.created_at || '').slice(0, 19);
+            document.getElementById('info-status').textContent = 'COMPLETED';
+
+            toast('Video ready!');
+        } else if (status === 'failed') {
+            clearInterval(pollTimer);
+            showResult('failed', 'Failed: ' + (t.error_message || 'Unknown error'), 100);
+        }
+    } catch(e) {
+        console.error('Poll error:', e);
+    }
+}
+
+function showResult(status, message, progress) {
+    const section = document.getElementById('result-section');
+    section.classList.add('show');
+
+    const badge = document.getElementById('result-status');
+    badge.textContent = status.toUpperCase();
+    badge.className = 'status-badge status-' + status;
+
+    if (progress !== undefined) {
+        document.getElementById('progress-fill').style.width = progress + '%';
+    }
+
+    if (message) {
+        document.getElementById('result-content').innerHTML =
+            '<p style="color:var(--muted);text-align:center;padding:20px;">' + message + '</p>';
+    }
+}
+
+// ── Toast ──
+
+function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 3500);
+}
+
+// ── Init ──
+
+// Try to load saved API URL
+const saved = localStorage.getItem('kling_api_url');
+if (saved) {
+    document.getElementById('api-url').value = saved;
+    checkConnection();
+}
+
+document.getElementById('api-url').addEventListener('change', function() {
+    localStorage.setItem('kling_api_url', this.value);
+});
+</script>
+</body>
+</html>

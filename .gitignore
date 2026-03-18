@@ -1,0 +1,35 @@
+# Output media
+output/
+
+# Environment
+.env
+.env.local
+
+# API keys
+*.key
+credentials.json
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Kling Proxy config (secrets stored in ~/.kling_proxy/)
+.kling_proxy/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker runtime
+inputs/
+outputs/
+accounts.txt
+
+# IDE
+.vscode/
+.idea/

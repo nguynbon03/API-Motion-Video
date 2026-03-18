@@ -1,0 +1,31 @@
+services:
+  kling-tool:
+    build: .
+    container_name: kling-tool
+    restart: always
+    ports:
+      - "8686:8686"
+    volumes:
+      # Persistent data (DB, sessions, cookies)
+      - kling-data:/data
+      # Drop accounts.txt here — auto-imported every 30s
+      - ./accounts.txt:/data/accounts/accounts.txt:ro
+      # Input files (images + videos)
+      - ./inputs:/data/inputs
+      # Output videos (download results here)
+      - ./outputs:/data/outputs
+    environment:
+      - KLING_DATA_DIR=/data
+      - KLING_HEADLESS=true
+      - KLING_HOST=0.0.0.0
+      - KLING_PORT=8686
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+
+volumes:
+  kling-data:
+    driver: local
