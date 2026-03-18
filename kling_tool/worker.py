@@ -75,8 +75,15 @@ class Worker:
 
         try:
             with browser:
+                # Navigate to app first to check login status
+                page = browser._page
+                page.goto("https://app.klingai.com/global/", timeout=20000, wait_until="domcontentloaded")
+                time.sleep(4)
+                browser._dismiss_overlays()
+
                 # Login if needed
                 if not browser._is_logged_in():
+                    log.info("Not logged in, attempting login for '%s'", account_name)
                     success = browser.login(account["email"], account["password"])
                     if not success:
                         self.db.update_task(
@@ -86,6 +93,8 @@ class Worker:
                         )
                         self.accounts.set_status(account_name, AccountStatus.DISABLED)
                         return True
+                else:
+                    log.info("Already logged in as '%s'", account_name)
 
                 # Create motion task
                 self.db.update_task(task_id, status=TaskStatus.PROCESSING.value)

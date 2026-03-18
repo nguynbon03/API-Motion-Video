@@ -135,20 +135,51 @@ class KlingBrowser:
         page.goto(APP_HOME_URL, timeout=cfg.DEFAULT_TIMEOUT, wait_until="domcontentloaded")
         time.sleep(4)
 
+        # Dismiss any promo popups first
+        self._dismiss_overlays()
+
         # Check if already logged in
         if self._is_logged_in():
             log.info("Already logged in via saved session.")
             self._save_cookies()
             return True
 
-        # Trigger login modal by clicking "Experience Now"
-        exp_btn = page.query_selector('button:has-text("Experience Now")')
-        if exp_btn:
-            exp_btn.click()
-            time.sleep(3)
+        # Trigger login modal — try multiple strategies
+        login_triggers = [
+            'text="Sign In"',                        # Sidebar "Sign In" button
+            'button:has-text("Sign In")',
+            'a:has-text("Sign In")',
+            'text="One-click Sign In"',              # Right panel button
+            'button:has-text("Experience Now")',      # Hero button
+            'button:has-text("Generate")',            # Any action that requires login
+        ]
+        for sel in login_triggers:
+            btn = page.query_selector(sel)
+            if btn and btn.is_visible():
+                log.info("Triggering login via: %s", sel)
+                btn.click()
+                time.sleep(3)
+                self._dismiss_overlays()
+                break
+
+        # Wait for login modal to appear
+        time.sleep(2)
+        self._screenshot("login_modal_check")
 
         # Click "Sign in with email" in the login modal
         email_signin = page.query_selector('text="Sign in with email"')
+        if not email_signin:
+            # Maybe modal didn't appear, try Escape and retry
+            page.keyboard.press("Escape")
+            time.sleep(1)
+            for sel in login_triggers[:3]:
+                btn = page.query_selector(sel)
+                if btn and btn.is_visible():
+                    btn.click()
+                    time.sleep(3)
+                    break
+            email_signin = page.query_selector('text="Sign in with email"')
+
         if not email_signin:
             log.error("Could not find 'Sign in with email' button")
             self._screenshot("login_no_email_btn")
@@ -224,19 +255,30 @@ class KlingBrowser:
         page = self._page
         try:
             url = page.url
-            # If we're on app.klingai.com (not login page), check for user indicators
-            if "app.klingai.com" in url and "/login" not in url:
-                # Look for credit display in sidebar (e.g. "981" credits)
-                credit_el = page.query_selector('[class*="credit"], [class*="balance"]')
-                if credit_el:
+            if "app.klingai.com" not in url:
+                return False
+
+            # Check for elements that only appear when logged in
+            logged_in_selectors = [
+                'text="Generate"',           # Sidebar nav
+                'text="Assets"',             # Sidebar nav
+                'text="All Tools"',          # Sidebar nav
+                'text="Omni"',               # Sidebar nav
+                '[class*="avatar"]',         # User avatar
+                'text="Plans from"',         # Pricing in sidebar (visible when logged in)
+                'text="Standard"',
+                'text="Pro"',
+                'text="Premium"',
+            ]
+            for sel in logged_in_selectors:
+                el = page.query_selector(sel)
+                if el and el.is_visible():
                     return True
-                # Look for user profile or "Standard"/"Pro" plan label
-                plan_el = page.query_selector('text="Standard", text="Pro", text="Premium"')
-                if plan_el:
-                    return True
-                # Look for sidebar nav items that only appear when logged in
-                if page.query_selector('text="Assets", text="Generate"'):
-                    return True
+
+            # If page has motion control / video generation content, user is logged in
+            if page.query_selector('button:has-text("Generate")'):
+                return True
+
             return False
         except Exception:
             return False
@@ -270,6 +312,7 @@ class KlingBrowser:
             log.info("Navigating to Motion Control...")
             page.goto(MOTION_CONTROL_URL, timeout=cfg.DEFAULT_TIMEOUT, wait_until="domcontentloaded")
             time.sleep(5)
+            self._dismiss_overlays()
             self._screenshot("mc_page")
 
             # Upload motion video first (input accepts .mp4,.mov)
@@ -299,25 +342,32 @@ class KlingBrowser:
             self._screenshot("mc_after_image")
 
             # Select character orientation if needed
-            if character_orientation == "image":
-                orient_btn = page.query_selector('text="Character Orientation Matches Image"')
-                if orient_btn:
-                    orient_btn.click()
-                    time.sleep(1)
-            elif character_orientation == "video":
-                orient_btn = page.query_selector('text="Character Orientation Matches Video"')
-                if orient_btn:
-                    orient_btn.click()
-                    time.sleep(1)
+            try:
+                if character_orientation == "image":
+                    orient_btn = page.query_selector('text="Character Orientation Matches Image"')
+                    if orient_btn:
+                        page.evaluate("el => el.click()", orient_btn)
+                        time.sleep(1)
+                elif character_orientation == "video":
+                    orient_btn = page.query_selector('text="Character Orientation Matches Video"')
+                    if orient_btn:
+                        page.evaluate("el => el.click()", orient_btn)
+                        time.sleep(1)
+            except Exception:
+                pass
 
-            # Click Generate
-            log.info("Clicking Generate...")
+            # Dismiss overlays + remove blocking video elements
+            self._dismiss_overlays()
+            time.sleep(1)
+
+            # Click Generate using JavaScript (bypasses ALL overlay/pointer-event issues)
+            log.info("Clicking Generate via JS...")
             gen_btn = page.query_selector('button:has-text("Generate")')
             if not gen_btn:
                 result["error"] = "Generate button not found"
                 return result
 
-            gen_btn.click()
+            page.evaluate("el => el.click()", gen_btn)
             log.info("Generate clicked, waiting for task submission...")
             time.sleep(8)
             self._screenshot("mc_after_generate")
@@ -418,6 +468,74 @@ class KlingBrowser:
         except Exception as e:
             log.warning("Could not read credits: %s", e)
             return -1
+
+    # ── Overlay / popup dismissal ────────────────────────────
+
+    def _dismiss_overlays(self):
+        """Close any overlay dialogs, modals, popups that block interaction."""
+        page = self._page
+        try:
+            # Strategy 1: Click close buttons on overlays
+            close_selectors = [
+                '.el-overlay .el-dialog__close',
+                '.el-overlay button[aria-label="Close"]',
+                '.el-overlay .close-btn',
+                '.el-overlay [class*="close"]',
+                '[class*="modal"] [class*="close"]',
+                '[class*="popup"] [class*="close"]',
+                'button:has-text("Close")',
+                'button:has-text("Got it")',
+                'button:has-text("OK")',
+                'button:has-text("I know")',
+                'button:has-text("Confirm")',
+                'button:has-text("Skip")',
+                'button:has-text("Later")',
+                'button:has-text("Not now")',
+                'button:has-text("Dismiss")',
+                '[class*="bonus"] [class*="close"]',
+                '[class*="trial"] [class*="close"]',
+                '[class*="promotion"] [class*="close"]',
+            ]
+            for sel in close_selectors:
+                btns = page.query_selector_all(sel)
+                for btn in btns:
+                    if btn.is_visible():
+                        btn.click(force=True)
+                        log.info("Dismissed overlay via: %s", sel)
+                        time.sleep(0.5)
+
+            # Strategy 2: Press Escape to close any modal
+            page.keyboard.press("Escape")
+            time.sleep(0.5)
+
+            # Strategy 3: Click overlay backdrop to dismiss
+            overlays = page.query_selector_all('.el-overlay')
+            for overlay in overlays:
+                if overlay.is_visible():
+                    # Click the overlay itself (backdrop click usually closes dialog)
+                    overlay.click(position={"x": 5, "y": 5}, force=True)
+                    time.sleep(0.3)
+
+            # Strategy 4: Remove overlays and blocking elements via JavaScript
+            page.evaluate("""() => {
+                // Remove overlay dialogs
+                document.querySelectorAll('.el-overlay, [class*="modal-mask"], [class*="overlay"]').forEach(el => {
+                    if (el.style.display !== 'none') el.style.display = 'none';
+                });
+                // Remove blocking video backgrounds (login page bg)
+                document.querySelectorAll('video.video[autoplay][loop]').forEach(el => {
+                    el.style.pointerEvents = 'none';
+                    el.style.zIndex = '-1';
+                });
+                // Remove any full-screen blocking divs
+                document.querySelectorAll('[class*="login-bg"], [class*="video-bg"]').forEach(el => {
+                    el.style.pointerEvents = 'none';
+                });
+            }""")
+            time.sleep(0.3)
+
+        except Exception as e:
+            log.debug("Overlay dismissal: %s", e)
 
     # ── Video download ───────────────────────────────────────
 
