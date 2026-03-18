@@ -604,9 +604,9 @@ class KlingBrowser:
             return '';
         }""")
 
-        if cdn_url and cdn_url.startswith("http"):
-            video_url = cdn_url
-            log.info("Found CDN URL: %s", video_url[:100])
+            if cdn_url and cdn_url.startswith("http"):
+                video_url = cdn_url
+                log.info("Found CDN URL from page: %s", video_url[:100])
 
         # Strategy 2: Click download button and capture download
         if not video_url:
