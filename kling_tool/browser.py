@@ -55,6 +55,7 @@ class KlingBrowser:
         self._page: Optional[Page] = None
         self._intercepted_apis: List[Dict] = []
         self._task_submit_response: Dict = {}
+        self._latest_cdn_url: str = ""
         self._cookies_path = cfg.SESSIONS_DIR / f"{account_name}.json"
 
     # ── Lifecycle ────────────────────────────────────────────
@@ -404,6 +405,10 @@ class KlingBrowser:
         result = {"status": "unknown", "video_url": "", "error": ""}
 
         try:
+            # Reload to trigger fresh API calls (captures CDN URLs via response interception)
+            page.reload(wait_until="domcontentloaded")
+            time.sleep(5)
+
             body = page.inner_text("body")
 
             if "Creating..." in body or "Queueing..." in body:
@@ -575,15 +580,14 @@ class KlingBrowser:
         page = self._page
         video_url = ""
 
-        # Strategy 1: Get real CDN URL from intercepted API responses
-        for api in reversed(self._intercepted_apis):
-            url = api.get("url", "")
-            if "works/personal/feeds" in url or "task/status" in url:
-                # These responses contain CDN video URLs
-                break
+        # Strategy 0: Use CDN URL captured from API response interception
+        if self._latest_cdn_url:
+            video_url = self._latest_cdn_url
+            log.info("Using intercepted CDN URL: %s", video_url[:100])
 
-        # Try to extract CDN URL via JavaScript from page's network responses
-        cdn_url = page.evaluate("""() => {
+        # Strategy 1: Try to extract CDN URL via JavaScript from page
+        if not video_url:
+            cdn_url = page.evaluate("""() => {
             // Find video elements with real URLs (not blob:)
             const videos = document.querySelectorAll('video');
             for (const v of videos) {
@@ -762,16 +766,44 @@ class KlingBrowser:
             self._intercepted_apis.append(entry)
 
     def _on_response(self, response):
-        """Capture task submit response for task ID extraction."""
+        """Capture task submit and video CDN URL responses."""
         url = response.url
-        if "api/task/submit" in url and response.status == 200:
-            try:
+        try:
+            if "api/task/submit" in url and response.status == 200:
                 body = response.json()
                 if body.get("result") == 1:
                     self._task_submit_response = body
                     log.info("Captured task submit: %s", str(body.get("data", {}).get("task", {}).get("id", ""))[:50])
-            except Exception:
-                pass
+
+            # Capture video CDN URLs from feeds/works responses
+            if ("works/personal/feeds" in url or "task/status" in url) and response.status == 200:
+                body = response.json()
+                self._extract_cdn_url(body)
+        except Exception:
+            pass
+
+    def _extract_cdn_url(self, body: dict):
+        """Extract real CDN video URL from Kling API responses."""
+        try:
+            # From feeds response
+            for hist in body.get("data", {}).get("history", []):
+                for work in hist.get("works", []):
+                    resource = work.get("resource", {}).get("resource", "")
+                    if resource and resource.startswith("http") and ".mp4" in resource:
+                        self._latest_cdn_url = resource
+                        log.info("Captured CDN URL: %s", resource[:100])
+                        return
+
+            # From task status response
+            task = body.get("data", {}).get("task", {})
+            for output in task.get("taskInfo", {}).get("outputs", []):
+                url = output.get("resource", "")
+                if url and url.startswith("http"):
+                    self._latest_cdn_url = url
+                    log.info("Captured CDN URL from task: %s", url[:100])
+                    return
+        except Exception:
+            pass
 
     def get_intercepted_apis(self) -> List[Dict]:
         return list(self._intercepted_apis)
