@@ -563,8 +563,10 @@ class KlingBrowser:
     def download_video(self, save_path: str) -> bool:
         """Download the completed video to a local file.
 
-        Handles both blob: URLs (browser-only) and https: URLs (CDN).
-        Skips background/login video elements.
+        Strategy order:
+        1. Find CDN URL from intercepted API responses (fastest, most reliable)
+        2. Click download button on Kling UI and capture file
+        3. Fetch blob: URL via JavaScript (fallback)
         """
         import base64
 
@@ -573,18 +575,67 @@ class KlingBrowser:
         page = self._page
         video_url = ""
 
-        # Find result video (skip background/login videos)
-        for vel in page.query_selector_all("video"):
-            src = vel.get_attribute("src") or ""
-            is_bg = vel.get_attribute("loop") is not None and vel.get_attribute("autoplay") is not None
-            poster = vel.get_attribute("poster") or ""
-            if is_bg and ("login" in poster or "kling-website" in poster):
-                continue
-            if src and (src.startswith("blob:") or src.startswith("http")):
-                video_url = src
+        # Strategy 1: Get real CDN URL from intercepted API responses
+        for api in reversed(self._intercepted_apis):
+            url = api.get("url", "")
+            if "works/personal/feeds" in url or "task/status" in url:
+                # These responses contain CDN video URLs
                 break
 
-        # Also try <video><source> pattern
+        # Try to extract CDN URL via JavaScript from page's network responses
+        cdn_url = page.evaluate("""() => {
+            // Find video elements with real URLs (not blob:)
+            const videos = document.querySelectorAll('video');
+            for (const v of videos) {
+                const src = v.src || '';
+                if (src.startsWith('http') && !src.includes('login')) return src;
+                const source = v.querySelector('source');
+                if (source && source.src && source.src.startsWith('http')) return source.src;
+            }
+            // Check for download links
+            const links = document.querySelectorAll('a[href*=".mp4"], a[download]');
+            for (const a of links) {
+                if (a.href && a.href.startsWith('http')) return a.href;
+            }
+            return '';
+        }""")
+
+        if cdn_url and cdn_url.startswith("http"):
+            video_url = cdn_url
+            log.info("Found CDN URL: %s", video_url[:100])
+
+        # Strategy 2: Click download button and capture download
+        if not video_url:
+            try:
+                download_btn = page.query_selector('[class*="download"]:visible')
+                if not download_btn:
+                    # Look for download icon (usually a down arrow icon)
+                    download_btn = page.query_selector('svg[class*="download"], [data-icon="download"]')
+                    if download_btn:
+                        download_btn = download_btn.query_selector('xpath=..')  # parent button
+
+                if download_btn:
+                    with page.expect_download(timeout=30000) as dl:
+                        page.evaluate("el => el.click()", download_btn)
+                    download = dl.value
+                    download.save_as(save_path)
+                    log.info("Video downloaded via button: %s bytes", Path(save_path).stat().st_size)
+                    return True
+            except Exception as e:
+                log.debug("Download button approach failed: %s", e)
+
+        # Strategy 3: Find blob: URL from video elements
+        if not video_url:
+            for vel in page.query_selector_all("video"):
+                src = vel.get_attribute("src") or ""
+                is_bg = vel.get_attribute("loop") is not None and vel.get_attribute("autoplay") is not None
+                poster = vel.get_attribute("poster") or ""
+                if is_bg and ("login" in poster or "kling-website" in poster):
+                    continue
+                if src and (src.startswith("blob:") or src.startswith("http")):
+                    video_url = src
+                    break
+
         if not video_url:
             for sel in page.query_selector_all("video source[src]"):
                 src = sel.get_attribute("src") or ""
@@ -600,36 +651,87 @@ class KlingBrowser:
         log.info("Downloading video: %s -> %s", video_url[:80], save_path)
 
         try:
-            if video_url.startswith("blob:"):
-                # Fetch blob via JavaScript, convert to base64
-                b64_data = page.evaluate("""async (url) => {
-                    const resp = await fetch(url);
-                    const buf = await resp.arrayBuffer();
-                    const bytes = new Uint8Array(buf);
-                    let binary = '';
-                    const chunk = 8192;
-                    for (let i = 0; i < bytes.length; i += chunk) {
-                        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-                    }
-                    return btoa(binary);
-                }""", video_url)
-
-                if b64_data:
-                    Path(save_path).write_bytes(base64.b64decode(b64_data))
-                    log.info("Video downloaded (blob): %s bytes", Path(save_path).stat().st_size)
-                    return True
-
-            elif video_url.startswith("http"):
-                # Direct download from CDN
+            if video_url.startswith("http"):
+                # Direct download from CDN (best case)
                 resp = _httpx.get(video_url, timeout=120, follow_redirects=True)
                 resp.raise_for_status()
                 Path(save_path).write_bytes(resp.content)
                 log.info("Video downloaded (CDN): %s bytes", len(resp.content))
                 return True
 
+            if video_url.startswith("blob:"):
+                # Blob URL — download via JavaScript with longer timeout
+                log.info("Downloading blob URL (this may take a moment)...")
+                b64_data = page.evaluate(
+                    """async (url) => {
+                        try {
+                            const resp = await fetch(url);
+                            const buf = await resp.arrayBuffer();
+                            const bytes = new Uint8Array(buf);
+                            let binary = '';
+                            const chunk = 8192;
+                            for (let i = 0; i < bytes.length; i += chunk) {
+                                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+                            }
+                            return btoa(binary);
+                        } catch(e) {
+                            return '';
+                        }
+                    }""",
+                    video_url,
+                )
+
+                if b64_data:
+                    Path(save_path).write_bytes(base64.b64decode(b64_data))
+                    size = Path(save_path).stat().st_size
+                    if size > 10000:  # Valid video should be >10KB
+                        log.info("Video downloaded (blob): %s bytes", size)
+                        return True
+                    else:
+                        log.warning("Downloaded file too small (%s bytes), likely invalid", size)
+                        Path(save_path).unlink(missing_ok=True)
+
+                # Blob fetch failed — try triggering download via Kling's download button
+                log.info("Blob fetch failed, trying download button...")
+                return self._download_via_button(save_path)
+
         except Exception as e:
             log.error("Video download failed: %s", e)
+            # Last resort: try download button
+            return self._download_via_button(save_path)
 
+        return False
+
+    def _download_via_button(self, save_path: str) -> bool:
+        """Click download icon on Kling UI and save the file."""
+        page = self._page
+        try:
+            # Kling has download icons on each video result
+            # Look for SVG download icons or download-related buttons
+            download_selectors = [
+                '[class*="download"]',
+                'svg[class*="download"]',
+                '[data-icon="download"]',
+                'button[title*="download" i]',
+                'button[title*="Download" i]',
+            ]
+            for sel in download_selectors:
+                els = page.query_selector_all(sel)
+                for el in els:
+                    if el.is_visible():
+                        try:
+                            with page.expect_download(timeout=60000) as dl:
+                                page.evaluate("el => el.click()", el)
+                            download = dl.value
+                            download.save_as(save_path)
+                            size = Path(save_path).stat().st_size
+                            log.info("Video downloaded (button): %s bytes", size)
+                            return size > 10000
+                        except Exception:
+                            continue
+
+        except Exception as e:
+            log.debug("Download button failed: %s", e)
         return False
 
     # ── Internal helpers ─────────────────────────────────────
